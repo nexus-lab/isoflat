@@ -141,4 +141,4 @@ class CreateIsoflatRule(extension.ClientExtensionCreate, IsoflatRule):
                                ['direction', 'protocol', 'port_range_min', 'port_range_max',
                                 'remote_ip', 'remote_network_id',
                                 'description'])
-        return {'isoflat_rule': body}
+        return {self.resource: body}
