@@ -2,54 +2,9 @@ from neutronclient._i18n import _
 from neutronclient.common import extension
 from neutronclient.common import utils
 from neutronclient.neutron import v2_0 as neutronV20
-
-
-def _get_remote(rule):
-    if rule['remote_ip']:
-        remote = '%s (CIDR)' % rule['remote_ip']
-    elif rule['remote_network_id']:
-        remote = '%s (network)' % rule['remote_network_id']
-    else:
-        remote = None
-    return remote
-
-
-def _get_protocol_port(rule):
-    proto = rule['protocol']
-    port_min = rule['port_range_min']
-    port_max = rule['port_range_max']
-    if proto in ('tcp', 'udp'):
-        if port_min and port_min == port_max:
-            protocol_port = '%s/%s' % (port_min, proto)
-        elif port_min:
-            protocol_port = '%s-%s/%s' % (port_min, port_max, proto)
-        else:
-            protocol_port = proto
-    elif proto == 'icmp':
-        icmp_opts = []
-        if port_min is not None:
-            icmp_opts.append('type:%s' % port_min)
-        if port_max is not None:
-            icmp_opts.append('code:%s' % port_max)
-
-        if icmp_opts:
-            protocol_port = 'icmp (%s)' % ', '.join(icmp_opts)
-        else:
-            protocol_port = 'icmp'
-    elif proto is not None:
-        # port_range_min/max are not recognized for protocol
-        # other than TCP, UDP and ICMP.
-        protocol_port = proto
-    else:
-        protocol_port = None
-
-    return protocol_port
-
-
-def generate_default_ethertype(protocol):
-    if protocol == 'icmpv6':
-        return 'IPv6'
-    return 'IPv4'
+from neutronclient.neutron.v2_0.securitygroup import _get_remote
+from neutronclient.neutron.v2_0.securitygroup import _get_protocol_port
+from neutronclient.neutron.v2_0.securitygroup import generate_default_ethertype
 
 
 class IsoflatRule(extension.NeutronClientExtension):
@@ -78,19 +33,19 @@ class ListIsoflatRule(extension.ClientExtensionList, IsoflatRule):
 
 
 class DeleteIsoflatRule(extension.ClientExtensionDelete, IsoflatRule):
-    """Delete a Isoflat rule."""
+    """Delete an Isoflat rule."""
 
     shell_command = 'isoflat-rule-delete'
 
 
 class ShowIsoflatRule(extension.ClientExtensionShow, IsoflatRule):
-    """Show a Isoflat rule."""
+    """Show an Isoflat rule."""
 
     shell_command = 'isoflat-rule-show'
 
 
 class CreateIsoflatRule(extension.ClientExtensionCreate, IsoflatRule):
-    """Create a Isoflat rule."""
+    """Create an Isoflat rule."""
 
     shell_command = 'isoflat-rule-create'
 
