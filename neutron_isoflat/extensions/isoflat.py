@@ -1,6 +1,6 @@
 import abc
-import six
 
+import six
 from neutron.api.v2 import resource_helper
 from neutron.extensions.securitygroup import convert_ethertype_to_case_insensitive
 from neutron.extensions.securitygroup import convert_ip_prefix_to_cidr
@@ -9,8 +9,12 @@ from neutron.extensions.securitygroup import convert_validate_port_value
 from neutron.extensions.securitygroup import sg_supported_ethertypes
 from neutron_lib.api import extensions
 from neutron_lib.services import base as service_base
+from oslo_config import cfg
 
+from neutron_isoflat._i18n import _
 from neutron_isoflat.common import constants
+
+DEFAULT_BRIDGE_MAPPINGS = []
 
 RESOURCE_ATTRIBUTE_MAP = {
     'rules': {
@@ -48,7 +52,30 @@ RESOURCE_ATTRIBUTE_MAP = {
     }
 }
 
+IsoflatOpts = [
+    cfg.StrOpt('driver',
+               default='',
+               help=_("Name of the TaaS Driver")),
+    cfg.ListOpt('bridge_mappings',
+                default=DEFAULT_BRIDGE_MAPPINGS,
+                help=_("Comma-separated list of <physical_network>:<bridge> "
+                       "tuples mapping physical network names to the agent's "
+                       "node-specific Open vSwitch/Linux bridge names to be used "
+                       "for flat networks. The length of bridge "
+                       "names should be no more than 11. Each bridge must "
+                       "exist, and should have a physical network interface "
+                       "configured as a port. All physical networks "
+                       "configured on the server should have mappings to "
+                       "appropriate bridges on each agent. "
+                       "Note: If you remove a bridge from this "
+                       "mapping, make sure to disconnect it from the "
+                       "integration bridge as it won't be managed by the "
+                       "agent anymore.")),
+]
+cfg.CONF.register_opts(IsoflatOpts, constants.ISOFLAT)
 
+
+# Class name here has to be lowercase except the initial letter
 class Isoflat(extensions.ExtensionDescriptor):
     """API extension for handling HDN tasks."""
 
@@ -70,7 +97,7 @@ class Isoflat(extensions.ExtensionDescriptor):
 
     @classmethod
     def get_plugin_interface(cls):
-        return IsoFlatPluginBase
+        return IsoflatPluginBase
 
     @classmethod
     def get_resources(cls):
@@ -96,13 +123,13 @@ class Isoflat(extensions.ExtensionDescriptor):
 
 
 @six.add_metaclass(abc.ABCMeta)
-class IsoFlatPluginBase(service_base.ServicePluginBase):
+class IsoflatPluginBase(service_base.ServicePluginBase):
 
     def get_plugin_name(self):
         return constants.ISOFLAT
 
     def get_plugin_description(self):
-        return "IsoFlat Service Plugin"
+        return "Isoflat Service Plugin"
 
     @classmethod
     def get_plugin_type(cls):
@@ -112,20 +139,20 @@ class IsoFlatPluginBase(service_base.ServicePluginBase):
     def get_rules(self, context, filters=None, fields=None,
                   sorts=None, limit=None, marker=None,
                   page_reverse=False):
-        """List all IsoFlat rules."""
+        """List all Isoflat rules."""
         pass
 
     @abc.abstractmethod
     def get_rule(self, context, rule_id, fields=None):
-        """Get an IsoFlat rule."""
+        """Get an Isoflat rule."""
         pass
 
     @abc.abstractmethod
     def create_rule(self, context, rule):
-        """Create an IsoFlat rule."""
+        """Create an Isoflat rule."""
         pass
 
     @abc.abstractmethod
     def delete_rule(self, context, rule_id):
-        """Delete an IsoFlat rule."""
+        """Delete an Isoflat rule."""
         pass
