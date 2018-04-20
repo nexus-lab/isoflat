@@ -1,4 +1,5 @@
 from neutron.db import common_db_mixin as base_db
+from neutron.db.models_v2 import Subnet
 from neutron_lib.plugins import directory
 from oslo_log import log as logging
 from oslo_utils import uuidutils
@@ -21,13 +22,16 @@ class IsoflatDbMixin(isoflat.IsoflatPluginBase, base_db.CommonDbMixin):
 
         return network
 
+    def _get_subnets(self, context, network_id):
+        return context.session.query(Subnet).filter_by(network_id=network_id).all()
+
     def _get_rule(self, context, id):
         try:
             return self._get_by_id(context, IsoflatRule, id)
         except exc.NoResultFound:
             raise isoflat.IsoflatRuleNotFound(rule_id=id)
 
-    def _make_isoflat_rule_dict(self, rule, fields=None):
+    def _make_rule_dict(self, rule, fields=None):
         res = {
             'id': rule['id'],
             'project_id': rule['project_id'],
@@ -60,9 +64,8 @@ class IsoflatDbMixin(isoflat.IsoflatPluginBase, base_db.CommonDbMixin):
                 remote_network_id=r['remote_network_id'],
                 description=r['description']
             )
-            LOG.debug(isoflat_rule)
             context.session.add(isoflat_rule)
-        return self._make_isoflat_rule_dict(isoflat_rule)
+        return self._make_rule_dict(isoflat_rule)
 
     def delete_rule(self, context, id):
         LOG.debug("IsoflatDbMixin.delete_rule() called")
@@ -72,13 +75,13 @@ class IsoflatDbMixin(isoflat.IsoflatPluginBase, base_db.CommonDbMixin):
     def get_rule(self, context, id, fields=None):
         LOG.debug("IsoflatDbMixin.get_rule() called")
         t_s = self._get_rule(context, id)
-        return self._make_isoflat_rule_dict(t_s, fields)
+        return self._make_rule_dict(t_s, fields)
 
     def get_rules(self, context, filters=None, fields=None,
                   sorts=None, limit=None, marker=None,
                   page_reverse=False):
         LOG.debug("IsoflatDbMixin.get_rules() called")
         return self._get_collection(context, IsoflatRule,
-                                    self._make_isoflat_rule_dict,
+                                    self._make_rule_dict,
                                     filters=filters, fields=fields, sorts=sorts,
                                     limit=limit, marker_obj=marker, page_reverse=page_reverse)

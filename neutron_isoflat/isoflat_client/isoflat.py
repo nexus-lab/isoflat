@@ -2,9 +2,18 @@ from neutronclient._i18n import _
 from neutronclient.common import extension
 from neutronclient.common import utils
 from neutronclient.neutron import v2_0 as neutronV20
-from neutronclient.neutron.v2_0.securitygroup import _get_remote
 from neutronclient.neutron.v2_0.securitygroup import _get_protocol_port
 from neutronclient.neutron.v2_0.securitygroup import generate_default_ethertype
+
+
+def _get_remote(rule):
+    if rule['remote_ip']:
+        remote = '%s (CIDR)' % rule['remote_ip']
+    elif rule['remote_network_id']:
+        remote = '%s (network)' % rule['remote_network_id']
+    else:
+        remote = None
+    return remote
 
 
 class IsoflatRule(extension.NeutronClientExtension):
@@ -19,17 +28,16 @@ class ListIsoflatRule(extension.ClientExtensionList, IsoflatRule):
     """List Isoflat rules."""
 
     shell_command = 'isoflat-rule-list'
-    list_columns = ['id', 'network_id', 'description', 'direction', 'ethertype',
+    list_columns = ['id', 'network_id', 'direction', 'ethertype',
                     'port/protocol', 'remote']
-    digest_fields = {
-        'remote': {
-            'method': _get_remote,
-            'depends_on': ['remote_ip', 'remote_network_id']},
-        'port/protocol': {
-            'method': _get_protocol_port,
-            'depends_on': ['protocol', 'port_range_min', 'port_range_max']}}
     pagination_support = True
     sorting_support = True
+
+    def setup_columns(self, info, parsed_args):
+        for rule in info:
+            rule['port/protocol'] = _get_protocol_port(rule)
+            rule['remote'] = _get_remote(rule)
+        return super(ListIsoflatRule, self).setup_columns(info, parsed_args)
 
 
 class DeleteIsoflatRule(extension.ClientExtensionDelete, IsoflatRule):
@@ -85,7 +93,7 @@ class CreateIsoflatRule(extension.ClientExtensionCreate, IsoflatRule):
 
     def args2body(self, parsed_args):
         body = {'ethertype': parsed_args.ethertype or
-                generate_default_ethertype(parsed_args.protocol)}
+                             generate_default_ethertype(parsed_args.protocol)}
         neutronV20.update_dict(parsed_args, body,
                                ['tenant_id', 'network_id', 'direction', 'protocol',
                                 'port_range_min', 'port_range_max', 'remote_ip',
