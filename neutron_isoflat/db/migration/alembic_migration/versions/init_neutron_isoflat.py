@@ -14,6 +14,7 @@ def upgrade():
     op.create_table(
         'isoflatrules',
         sa.Column('id', sa.String(length=36), nullable=False),
+        sa.Column('project_id', sa.String(length=255), nullable=True, index=True),
         sa.Column('network_id', sa.String(length=36), nullable=False),
         sa.Column('direction', direction_types, nullable=False),
         sa.Column('protocol', sa.String(length=40), nullable=True),
@@ -24,7 +25,8 @@ def upgrade():
         sa.Column('remote_network_id', sa.String(db_const.UUID_FIELD_SIZE),
                   sa.ForeignKey("networks.id", ondelete="CASCADE"),
                   nullable=True),
-        sa.Column('description', sa.String(length=255)),
+        sa.Column('standard_attr_id', sa.BigInteger(), nullable=False),
         sa.ForeignKeyConstraint(['network_id'], ['networks.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['remote_network_id'], ['networks.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['standard_attr_id'], ['standardattributes.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'))

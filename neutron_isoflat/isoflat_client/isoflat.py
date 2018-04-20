@@ -49,12 +49,6 @@ class CreateIsoflatRule(extension.ClientExtensionCreate, IsoflatRule):
 
     shell_command = 'isoflat-rule-create'
 
-    def get_parser(self, prog_name):
-        parser = super(neutronV20.CreateCommand, self).get_parser(prog_name)
-        # we do not need tenant id
-        self.add_known_arguments(parser)
-        return parser
-
     def add_known_arguments(self, parser):
         parser.add_argument(
             '--description',
@@ -93,7 +87,7 @@ class CreateIsoflatRule(extension.ClientExtensionCreate, IsoflatRule):
         body = {'ethertype': parsed_args.ethertype or
                 generate_default_ethertype(parsed_args.protocol)}
         neutronV20.update_dict(parsed_args, body,
-                               ['direction', 'protocol', 'port_range_min', 'port_range_max',
-                                'remote_ip', 'remote_network_id',
-                                'description'])
+                               ['tenant_id', 'network_id', 'direction', 'protocol',
+                                'port_range_min', 'port_range_max', 'remote_ip',
+                                'remote_network_id', 'description'])
         return {self.resource: body}

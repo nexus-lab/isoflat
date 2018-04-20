@@ -7,6 +7,7 @@ from neutron.extensions.securitygroup import convert_ip_prefix_to_cidr
 from neutron.extensions.securitygroup import convert_protocol
 from neutron.extensions.securitygroup import convert_validate_port_value
 from neutron.extensions.securitygroup import sg_supported_ethertypes
+from neutron_lib import exceptions as qexception
 from neutron_lib.api import extensions
 from neutron_lib.services import base as service_base
 from oslo_config import cfg
@@ -22,6 +23,9 @@ RESOURCE_ATTRIBUTE_MAP = {
                'validate': {'type:uuid': None},
                'is_visible': True,
                'primary_key': True},
+        'tenant_id': {'allow_post': True, 'allow_put': False,
+                      'validate': {'type:string': None},
+                      'required_by_policy': True, 'is_visible': True},
         'network_id': {'allow_post': True, 'allow_put': False,
                        'is_visible': True, 'required_by_policy': True},
         'direction': {'allow_post': True, 'allow_put': False,
@@ -73,6 +77,18 @@ IsoflatOpts = [
                        "agent anymore.")),
 ]
 cfg.CONF.register_opts(IsoflatOpts, constants.ISOFLAT)
+
+
+class IsoflatRuleNotFound(qexception.NotFound):
+    message = _("Isoflat rule %(rule_id)s does not exist")
+
+
+class NotAuthorizedToEditRule(qexception.NotAuthorized):
+    message = _("The specified network %(network_id)s does not belong to you or you are not an admin")
+
+
+class InvalidNetworkType(qexception.Invalid):
+    message = _("The specified network %(network_id)s is not a flat network")
 
 
 # Class name here has to be lowercase except the initial letter
