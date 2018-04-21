@@ -1,6 +1,5 @@
 import oslo_messaging as messaging
 from neutron.common import rpc as n_rpc
-from oslo_config import cfg
 from oslo_log import log as logging
 
 from neutron_isoflat.common import constants
@@ -12,7 +11,6 @@ class IsoflatRpcDriver(object):
 
     def __init__(self, service_plugin):
         LOG.debug("Loading IsoflatRpcDriver.")
-        self.host = cfg.CONF.host
         self.service_plugin = service_plugin
         self.endpoints = []
         self.conn = n_rpc.create_connection()
@@ -30,7 +28,7 @@ class IsoflatRpcDriver(object):
         pass
 
     def create_rule_postcommit(self, context, rule):
-        LOG.debug("RPC call from %s for creating isoflat rule %s" % (self.host, rule))
+        LOG.debug("Sending the RPC call for creating isoflat rule %s" % rule)
         cctxt = self.client.prepare(fanout=True)
         cctxt.cast(context, 'create_rule', rule=rule)
 
@@ -38,6 +36,6 @@ class IsoflatRpcDriver(object):
         pass
 
     def delete_rule_postcommit(self, context, rule):
-        LOG.debug("RPC call from %s for deleting isoflat rule %s" % (self.host, rule))
+        LOG.debug("Sending the RPC call for deleting isoflat rule %s" % rule)
         cctxt = self.client.prepare(fanout=True)
         cctxt.cast(context, 'delete_rule', rule=rule)
