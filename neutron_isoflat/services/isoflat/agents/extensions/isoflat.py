@@ -69,9 +69,9 @@ class IsoflatAgentDriverBase(object):
         return constants.PHYSIBR_IF_PREFIX + bridge_name[len(constants.ISOFLAT_BR_PREFIX):]
 
     @staticmethod
-    def _parse_bridge_mappings(bridge_mappings):
+    def _parse_bridge_mappings(bridge_mappings, unique_values=True):
         try:
-            return helpers.parse_mappings(bridge_mappings)
+            return helpers.parse_mappings(bridge_mappings, unique_values)
         except ValueError as e:
             raise ValueError(_("Parsing bridge_mappings failed: %s.") % e)
 

@@ -19,7 +19,7 @@ class IsoflatOvsDriver(isoflat.IsoflatAgentDriverBase):
 
     def __init__(self):
         self.ovs_bridge_mappings = self._parse_bridge_mappings(cfg.CONF.OVS.bridge_mappings)
-        self.iso_bridge_mappings = self._parse_bridge_mappings(cfg.CONF.ISOFLAT.bridge_mappings)
+        self.iso_bridge_mappings = self._parse_bridge_mappings(cfg.CONF.ISOFLAT.bridge_mappings, False)
 
     def initialize(self):
         # reboot the agent if bridge mappings changes
