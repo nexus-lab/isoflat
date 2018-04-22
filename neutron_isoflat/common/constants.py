@@ -1,5 +1,11 @@
 ISOFLAT = "ISOFLAT"
 
+ISOFLAT_BR_PREFIX = 'isobr-'
+ISOFLAT_IF_PREFIX = 'isoif-'
+PHYSIBR_IF_PREFIX = 'phyif-'
+ISOFLAT_IF_LENGTH = 14
+DEFAULT_BRIDGE_MAPPINGS = []
+
 TOPIC_ISOFLAT_PLUGIN = 'neutron-isoflat-plugin'
 TOPIC_ISOFLAT_AGENT = 'neutron-isoflat-agent'
 
