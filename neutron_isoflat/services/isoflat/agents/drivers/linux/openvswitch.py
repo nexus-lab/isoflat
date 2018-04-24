@@ -18,6 +18,7 @@ class IsoflatOvsDriver(isoflat.IsoflatAgentDriverBase):
     _bridge_mappings_changed = False
 
     def __init__(self):
+        super(IsoflatOvsDriver, self).__init__()
         self.ovs_bridge_mappings = self._parse_bridge_mappings(cfg.CONF.OVS.bridge_mappings)
         self.iso_bridge_mappings = self._parse_bridge_mappings(cfg.CONF.ISOFLAT.bridge_mappings, False)
 
@@ -103,8 +104,12 @@ class IsoflatOvsDriver(isoflat.IsoflatAgentDriverBase):
                 with open(config_file, 'wb') as f:
                     parser.write(f)
 
-    def create_rule(self, context, rule):
-        pass
+    def create_rule(self, context, rule, rules):
+        physical_network = rule['physical_network']
+        device = self.ovs_bridge_mappings[physical_network]
+        self.firewall.update_firewall_rules(device, physical_network, rules)
 
-    def delete_rule(self, context, rule):
-        pass
+    def delete_rule(self, context, rule, rules):
+        physical_network = rule['physical_network']
+        device = self.ovs_bridge_mappings[physical_network]
+        self.firewall.update_firewall_rules(device, physical_network, rules)

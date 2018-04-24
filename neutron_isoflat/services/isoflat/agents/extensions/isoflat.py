@@ -13,10 +13,16 @@ from oslo_service import service
 
 from neutron_isoflat._i18n import _
 from neutron_isoflat.common import constants
+from neutron_isoflat.services.isoflat.agents.firewall.linux import firewall
 
 LOG = logging.getLogger(__name__)
 
 OPTS = [
+    cfg.IntOpt(
+        'firewall_driver',
+        default='IptablesFirewall',
+        help=_('Class name of the firewall driver Isoflat uses to filter flat network traffic.')
+    ),
     cfg.IntOpt(
         'agent_periodic_interval',
         default=5,
@@ -43,6 +49,13 @@ cfg.CONF.register_opts(OPTS, constants.ISOFLAT)
 
 @six.add_metaclass(abc.ABCMeta)
 class IsoflatAgentDriverBase(object):
+
+    def __init__(self):
+        firewall_driver = cfg.CONF.ISOFLAT.firewall_driver
+        LOG.debug("Init Isoflat firewall settings (driver=%s)", firewall_driver)
+        firewall_class = firewall.load_firewall_driver_class(firewall_driver)
+        self.firewall = firewall_class()
+        self.firewall.init_firewall()
 
     @staticmethod
     def _random_name():
@@ -100,11 +113,11 @@ class IsoflatAgentDriverBase(object):
         """
 
     @abc.abstractmethod
-    def create_rule(self, context, rule):
+    def create_rule(self, context, rule, rules):
         """Create an Isoflat rule."""
 
     @abc.abstractmethod
-    def delete_rule(self, context, rule):
+    def delete_rule(self, context, rule, rules):
         """Delete an Isoflat rule."""
 
 
@@ -139,13 +152,13 @@ class IsoflatAgentExtension(l2_extension.L2AgentExtension):
     def delete_port(self, context, data):
         pass
 
-    def create_rule(self, context, rule):
+    def create_rule(self, context, rule, rules):
         LOG.debug("Received an RPC call for creating isoflat rule %s" % rule)
-        self.driver.create_rule(context, rule)
+        self.driver.create_rule(context, rule, rules)
 
-    def delete_rule(self, context, rule):
+    def delete_rule(self, context, rule, rules):
         LOG.debug("Received an RPC call for deleting isoflat rule %s" % rule)
-        self.driver.delete_rule(context, rule)
+        self.driver.delete_rule(context, rule, rules)
 
     def periodic_tasks(self):
         pass

@@ -67,8 +67,8 @@ class CreateIsoflatRule(extension.ClientExtensionCreate, IsoflatRule):
         parser.add_argument(
             '--direction',
             type=utils.convert_to_lowercase,
-            default='ingress', choices=['ingress', 'egress', 'both'],
-            help=_('Direction of traffic to be dropped: ingress/egress/both.'))
+            default='ingress', choices=['ingress', 'egress'],
+            help=_('Direction of traffic to be dropped: ingress/egress.'))
         parser.add_argument(
             '--ethertype',
             help=_('IPv4/IPv6'))

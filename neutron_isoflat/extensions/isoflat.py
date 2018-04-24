@@ -7,6 +7,7 @@ from neutron.extensions.securitygroup import convert_ip_prefix_to_cidr
 from neutron.extensions.securitygroup import convert_protocol
 from neutron.extensions.securitygroup import convert_validate_port_value
 from neutron.extensions.securitygroup import sg_supported_ethertypes
+from neutron_lib import constants as qconstants
 from neutron_lib import exceptions as qexception
 from neutron_lib.api import extensions
 from neutron_lib.services import base as service_base
@@ -24,11 +25,11 @@ RESOURCE_ATTRIBUTE_MAP = {
                       'validate': {'type:string': None},
                       'required_by_policy': True, 'is_visible': True},
         'network_id': {'allow_post': True, 'allow_put': False,
-                      'validate': {'type:string': None},
+                       'validate': {'type:string': None},
                        'is_visible': True, 'required_by_policy': True},
         'direction': {'allow_post': True, 'allow_put': False,
                       'is_visible': True,
-                      'validate': {'type:values': ['ingress', 'egress', 'both']}},
+                      'validate': {'type:values': [qconstants.INGRESS_DIRECTION, qconstants.EGRESS_DIRECTION]}},
         'protocol': {'allow_post': True, 'allow_put': False,
                      'is_visible': True, 'default': None,
                      'convert_to': convert_protocol},

@@ -1,6 +1,7 @@
 import sqlalchemy as sa
 from neutron.db import standard_attr
 from neutron.db.models_v2 import Network
+from neutron_lib import constants
 from neutron_lib.db import constants as db_const
 from neutron_lib.db import model_base
 from sqlalchemy import orm
@@ -14,7 +15,8 @@ class IsoflatRule(standard_attr.HasStandardAttributes, model_base.BASEV2, model_
     network_id = sa.Column(sa.String(length=db_const.UUID_FIELD_SIZE),
                            sa.ForeignKey("networks.id", ondelete="CASCADE"),
                            nullable=False)
-    direction = sa.Column(sa.Enum('ingress', 'egress', 'both', name='isoflatrules_direction'),
+    direction = sa.Column(sa.Enum(constants.INGRESS_DIRECTION, constants.EGRESS_DIRECTION,
+                                  name='isoflatrules_direction'),
                           nullable=False)
     protocol = sa.Column(sa.String(length=40))
     port_range_min = sa.Column(sa.Integer())

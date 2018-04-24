@@ -1,5 +1,6 @@
 import sqlalchemy as sa
 from alembic import op
+from neutron_lib import constants
 from neutron_lib.db import constants as db_const
 
 # revision identifiers, used by Alembic.
@@ -7,7 +8,8 @@ revision = 'init_neutron_isoflat'
 down_revision = None
 
 
-direction_types = sa.Enum('ingress', 'egress', 'both', name='isoflatrule_direction')
+direction_types = sa.Enum(constants.INGRESS_DIRECTION, constants.EGRESS_DIRECTION,
+                          name='isoflatrule_direction')
 
 
 def upgrade():

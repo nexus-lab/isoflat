@@ -15,8 +15,8 @@ class IsoflatLinuxBridgeDriver(isoflat.IsoflatAgentDriverBase):
     def consume_api(self, agent_api):
         pass
 
-    def create_rule(self, context, rule):
+    def create_rule(self, context, rule, rules):
         pass
 
-    def delete_rule(self, context, rule):
+    def delete_rule(self, context, rule, rules):
         pass

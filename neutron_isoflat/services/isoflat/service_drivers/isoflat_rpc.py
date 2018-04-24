@@ -24,18 +24,18 @@ class IsoflatRpcDriver(object):
     def service_type(self):
         pass
 
-    def create_rule_precommit(self, context, rule):
+    def create_rule_precommit(self, context, rule, rules):
         pass
 
-    def create_rule_postcommit(self, context, rule):
+    def create_rule_postcommit(self, context, rule, rules):
         LOG.debug("Sending the RPC call for creating isoflat rule %s" % rule)
         cctxt = self.client.prepare(fanout=True)
-        cctxt.cast(context, 'create_rule', rule=rule)
+        cctxt.cast(context, 'create_rule', rule=rule, rules=rules)
 
-    def delete_rule_precommit(self, context, rule):
+    def delete_rule_precommit(self, context, rule, rules):
         pass
 
-    def delete_rule_postcommit(self, context, rule):
+    def delete_rule_postcommit(self, context, rule, rules):
         LOG.debug("Sending the RPC call for deleting isoflat rule %s" % rule)
         cctxt = self.client.prepare(fanout=True)
-        cctxt.cast(context, 'delete_rule', rule=rule)
+        cctxt.cast(context, 'delete_rule', rule=rule, rules=rules)

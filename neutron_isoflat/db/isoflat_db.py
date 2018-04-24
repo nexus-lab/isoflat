@@ -13,7 +13,8 @@ LOG = logging.getLogger(__name__)
 
 class IsoflatDbMixin(isoflat.IsoflatPluginBase, base_db.CommonDbMixin):
 
-    def _core_plugin(self):
+    @staticmethod
+    def _core_plugin():
         return directory.get_plugin()
 
     def _get_network_details(self, context, network_id):
@@ -22,7 +23,8 @@ class IsoflatDbMixin(isoflat.IsoflatPluginBase, base_db.CommonDbMixin):
 
         return network
 
-    def _get_subnets(self, context, network_id):
+    @staticmethod
+    def _get_subnets(context, network_id):
         return context.session.query(Subnet).filter_by(network_id=network_id).all()
 
     def _get_rule(self, context, id):
@@ -30,6 +32,10 @@ class IsoflatDbMixin(isoflat.IsoflatPluginBase, base_db.CommonDbMixin):
             return self._get_by_id(context, IsoflatRule, id)
         except exc.NoResultFound:
             raise isoflat.IsoflatRuleNotFound(rule_id=id)
+
+    @staticmethod
+    def _get_rules_by_network(context, network_id):
+        return context.session.query(IsoflatRule).filter_by(network_id=network_id).all()
 
     def _make_rule_dict(self, rule, fields=None):
         res = {

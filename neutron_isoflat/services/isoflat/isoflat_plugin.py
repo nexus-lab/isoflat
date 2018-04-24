@@ -12,12 +12,14 @@ from neutron_isoflat.extensions import isoflat
 LOG = logging.getLogger(__name__)
 
 
+# TODO: on remote network subnet changes, refresh isoflat rules
 class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
 
     supported_extension_aliases = ["isoflat"]
     path_prefix = "/isoflat"
 
-    def _check_network_type(self, network):
+    @staticmethod
+    def _check_network_type(network):
         if network['provider:network_type'] != 'flat':
             raise isoflat.InvalidNetworkType(network_id=network['id'])
 
@@ -26,12 +28,12 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
             raise isoflat.NotAuthorizedToEditRule(network_id=network['id'])
         self._check_network_type(network)
 
-    def _prepare_rule_dict_for_agent(self, context, rule, network, remote_network=None):
+    def _prepare_rule_dict_for_agent(self, context, rule, network):
         if rule['remote_ip'] is not None:
             remote_ips = [rule['remote_ip']]
-        elif remote_network is not None:
+        elif rule.get('remote_network_id', None) is not None:
             # get subnets and ips
-            subnets = self._get_subnets(context, network['id'])
+            subnets = self._get_subnets(context, rule['remote_network_id'])
             remote_ips = [subnet['cidr'] for subnet in subnets]
         else:
             remote_ips = ['0.0.0.0/0']
@@ -44,6 +46,10 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
             'ethertype': rule['ethertype'],
             'remote_ips': remote_ips
         }
+
+    def _prepare_rules_dict_for_agent(self, context, network):
+        rules = self._get_rules_by_network(network['id'])
+        return [self._prepare_rule_dict_for_agent(context, rule, network) for rule in rules]
 
     def __init__(self):
         LOG.debug("ISOFLAT PLUGIN INITIALIZED")
@@ -61,17 +67,18 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
         r = rule['rule']
         network = self._get_network_details(context, r['network_id'])
         self._check_network(context, network)
-        remote_network = None
         if r['remote_network_id'] is not None:
             remote_network = self._get_network_details(context, r['network_id'])
             self._check_network_type(remote_network)
 
         with context.session.begin(subtransactions=True):
             r = super(IsoflatPlugin, self).create_rule(context, rule)
-            msg = self._prepare_rule_dict_for_agent(context, r, network, remote_network)
-            self.driver.create_rule_precommit(context, msg)
+            rule = self._prepare_rule_dict_for_agent(context, r, network)
+            # send back all Isoflat rules of this network
+            rules = self._prepare_rules_dict_for_agent(context, network)
+            self.driver.create_rule_precommit(context, rule, rules)
         try:
-            self.driver.create_rule_postcommit(context, msg)
+            self.driver.create_rule_postcommit(context, rules)
         except Exception:
             with excutils.save_and_reraise_exception():
                 LOG.error("Failed to create isoflat rule on driver,"
@@ -87,11 +94,12 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
             self._check_network(context, network)
             super(IsoflatPlugin, self).delete_rule(context, rule_id)
 
-            remote_network = self._get_network_details(context, r['network_id'])
-            msg = self._prepare_rule_dict_for_agent(context, r, network, remote_network)
-            self.driver.delete_rule_precommit(context, msg)
+            rule = self._prepare_rule_dict_for_agent(context, r, network)
+            # send back all Isoflat rules of this network
+            rules = self._prepare_rules_dict_for_agent(context, network)
+            self.driver.delete_rule_precommit(context, rule, rules)
         try:
-            self.driver.delete_rule_postcommit(context, msg)
+            self.driver.delete_rule_postcommit(context, rule, rules)
         except Exception:
             with excutils.save_and_reraise_exception():
                 LOG.error("Failed to delete rule on driver. "
