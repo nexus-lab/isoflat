@@ -18,9 +18,9 @@ from neutron_isoflat.services.isoflat.agents.firewall.linux import firewall
 LOG = logging.getLogger(__name__)
 
 OPTS = [
-    cfg.IntOpt(
+    cfg.StrOpt(
         'firewall_driver',
-        default='IptablesFirewall',
+        default='iptables',
         help=_('Class name of the firewall driver Isoflat uses to filter flat network traffic.')
     ),
     cfg.IntOpt(

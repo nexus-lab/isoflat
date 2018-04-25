@@ -106,10 +106,12 @@ class IsoflatOvsDriver(isoflat.IsoflatAgentDriverBase):
 
     def create_rule(self, context, rule, rules):
         physical_network = rule['physical_network']
-        device = self.ovs_bridge_mappings[physical_network]
+        mirror_bridge = self.ovs_bridge_mappings[physical_network]
+        device = self._get_phy_if_name(mirror_bridge)
         self.firewall.update_firewall_rules(device, physical_network, rules)
 
     def delete_rule(self, context, rule, rules):
         physical_network = rule['physical_network']
-        device = self.ovs_bridge_mappings[physical_network]
+        mirror_bridge = self.ovs_bridge_mappings[physical_network]
+        device = self._get_phy_if_name(mirror_bridge)
         self.firewall.update_firewall_rules(device, physical_network, rules)

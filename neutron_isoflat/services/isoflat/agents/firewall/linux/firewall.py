@@ -6,7 +6,7 @@ from neutron_lib.utils import runtime
 
 def load_firewall_driver_class(driver):
     return runtime.load_class_by_alias_or_classname(
-        'neutron_isoflat.services.isoflat.agents.firewall.linux', driver)
+        'neutron_isoflat.isoflat.firewall_drivers', driver)
 
 
 @six.add_metaclass(abc.ABCMeta)

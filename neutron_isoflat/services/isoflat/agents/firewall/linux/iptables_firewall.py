@@ -10,9 +10,9 @@ from neutron_isoflat.services.isoflat.agents.firewall.linux import firewall
 
 LOG = logging.getLogger(__name__)
 
-ISOFLAT_CHAIN = 'isoflat-chain'
-CHAIN_NAME_PREFIX = {constants.INGRESS_DIRECTION: 'i',
-                     constants.EGRESS_DIRECTION: 'o'}
+ISOFLAT_CHAIN = 'iso-chain'
+CHAIN_NAME_PREFIX = {constants.INGRESS_DIRECTION: 'i-',
+                     constants.EGRESS_DIRECTION: 'o-'}
 IPSET_DIRECTION = {constants.INGRESS_DIRECTION: 'src',
                    constants.EGRESS_DIRECTION: 'dst'}
 IPTABLES_DIRECTION = {constants.INGRESS_DIRECTION: 'physdev-out',
@@ -25,6 +25,7 @@ class IptablesFirewall(firewall.FirewallDriver):
     def __init__(self):
         self.iptables = iptables_manager.IptablesManager(state_less=True,
                                                          use_ipv6=ipv6_utils.is_enabled_and_bind_by_default())
+        self._add_isoflat_chain_v4v6()
         self._add_fallback_chain_v4v6()
 
     @staticmethod
@@ -75,7 +76,7 @@ class IptablesFirewall(firewall.FirewallDriver):
                                       ipv4_iptables_rules,
                                       ipv6_iptables_rules)
 
-    def _setup_chain(self, device, rules, physical_network, direction):
+    def _setup_chain(self, device, physical_network, rules, direction):
         chain_name = self._network_chain_name(physical_network, direction)
         self._add_chain(chain_name, device, direction)
         new_rules = [rule for rule in rules if rule['direction'] == direction]
@@ -84,6 +85,9 @@ class IptablesFirewall(firewall.FirewallDriver):
     def _remove_chain(self, physical_network, direction):
         chain_name = self._network_chain_name(physical_network, direction)
         self._remove_chain_by_name_v4v6(chain_name)
+
+    def _add_isoflat_chain_v4v6(self):
+        self._add_chain_by_name_v4v6(ISOFLAT_CHAIN)
 
     def _add_fallback_chain_v4v6(self):
         """
@@ -207,7 +211,7 @@ class IptablesFirewall(firewall.FirewallDriver):
     def _split_rules_by_remote_ips(isoflat_rules):
         rules = []
         for rule in isoflat_rules:
-            for remote_ip in rule['remote_ip']:
+            for remote_ip in rule['remote_ips']:
                 new_rule = dict(rule)
                 new_rule['remote_ip'] = remote_ip
                 rules.append(new_rule)

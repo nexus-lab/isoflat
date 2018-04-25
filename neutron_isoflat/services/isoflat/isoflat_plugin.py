@@ -48,7 +48,7 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
         }
 
     def _prepare_rules_dict_for_agent(self, context, network):
-        rules = self._get_rules_by_network(network['id'])
+        rules = self._get_rules_by_network(context, network['id'])
         return [self._prepare_rule_dict_for_agent(context, rule, network) for rule in rules]
 
     def __init__(self):
@@ -78,7 +78,7 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
             rules = self._prepare_rules_dict_for_agent(context, network)
             self.driver.create_rule_precommit(context, rule, rules)
         try:
-            self.driver.create_rule_postcommit(context, rules)
+            self.driver.create_rule_postcommit(context, rule, rules)
         except Exception:
             with excutils.save_and_reraise_exception():
                 LOG.error("Failed to create isoflat rule on driver,"
