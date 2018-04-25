@@ -47,7 +47,7 @@ RESOURCE_ATTRIBUTE_MAP = {
                       'default': None, 'is_visible': True,
                       'convert_to': convert_ip_prefix_to_cidr},
         'remote_network_id': {'allow_post': True, 'allow_put': False,
-                              'validate': {'type:string': None},
+                              'validate': {'type:string_or_none': None},
                               'default': None, 'is_visible': True},
         'description': {'allow_post': True, 'allow_put': True,
                         'validate': {

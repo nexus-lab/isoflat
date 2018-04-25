@@ -10,6 +10,7 @@ from neutron_isoflat.services.isoflat.agents.firewall.linux import firewall
 
 LOG = logging.getLogger(__name__)
 
+BINARY_NAME = 'neutron-isoflat'
 ISOFLAT_CHAIN = 'iso-chain'
 CHAIN_NAME_PREFIX = {constants.INGRESS_DIRECTION: 'i-',
                      constants.EGRESS_DIRECTION: 'o-'}
@@ -24,6 +25,7 @@ class IptablesFirewall(firewall.FirewallDriver):
 
     def __init__(self):
         self.iptables = iptables_manager.IptablesManager(state_less=True,
+                                                         binary_name=BINARY_NAME,
                                                          use_ipv6=ipv6_utils.is_enabled_and_bind_by_default())
         self._add_isoflat_chain_v4v6()
         self._add_fallback_chain_v4v6()
@@ -44,7 +46,7 @@ class IptablesFirewall(firewall.FirewallDriver):
     def _add_chain(self, chain_name, device, direction):
         self._add_chain_by_name_v4v6(chain_name)
 
-        jump_rule = ['-m physdev --%s %s --physdev-is-bridged '
+        jump_rule = ['-m physdev --%s %s '
                      '-j $%s' % (IPTABLES_DIRECTION[direction],
                                  device,
                                  ISOFLAT_CHAIN)]
@@ -52,7 +54,7 @@ class IptablesFirewall(firewall.FirewallDriver):
                                       comment=ic.VM_INT_SG)
 
         # jump to the chain based on the device
-        jump_rule = ['-m physdev --%s %s --physdev-is-bridged '
+        jump_rule = ['-m physdev --%s %s '
                      '-j $%s' % (IPTABLES_DIRECTION[direction],
                                  device,
                                  chain_name)]
