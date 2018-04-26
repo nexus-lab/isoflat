@@ -1,11 +1,10 @@
 from neutron.agent.linux import iptables_comments as ic
-from neutron.agent.linux import iptables_manager
 from neutron.common import constants as n_const
-from neutron.common import ipv6_utils
 from neutron.common import utils as c_utils
 from neutron_lib import constants
 from oslo_log import log as logging
 
+from neutron_isoflat.services.isoflat.agents.firewall.linux import ebtables_manager
 from neutron_isoflat.services.isoflat.agents.firewall.linux import firewall
 
 LOG = logging.getLogger(__name__)
@@ -14,69 +13,55 @@ BINARY_NAME = 'neutron-isoflat'
 ISOFLAT_CHAIN = 'iso-chain'
 CHAIN_NAME_PREFIX = {constants.INGRESS_DIRECTION: 'i-',
                      constants.EGRESS_DIRECTION: 'o-'}
-IPSET_DIRECTION = {constants.INGRESS_DIRECTION: 'src',
-                   constants.EGRESS_DIRECTION: 'dst'}
-IPTABLES_DIRECTION = {constants.INGRESS_DIRECTION: 'physdev-out',
+EBTABLES_DIRECTION = {constants.INGRESS_DIRECTION: 'physdev-out',
                       constants.EGRESS_DIRECTION: 'physdev-in'}
-comment_rule = iptables_manager.comment_rule
+comment_rule = ebtables_manager.comment_rule
 
 
-class IptablesFirewall(firewall.FirewallDriver):
+class EbtablesFirewall(firewall.FirewallDriver):
 
     def __init__(self):
-        self.iptables = iptables_manager.IptablesManager(state_less=True,
-                                                         binary_name=BINARY_NAME,
-                                                         use_ipv6=ipv6_utils.is_enabled_and_bind_by_default())
+        self.ebtables = ebtables_manager.EbtablesManager(state_less=True,
+                                                         _binary_name=BINARY_NAME)
         self._add_isoflat_chain_v4v6()
         self._add_fallback_chain_v4v6()
 
     @staticmethod
     def _network_chain_name(physical_network, direction):
-        return iptables_manager.get_chain_name(
+        return ebtables_manager.get_chain_name(
             '%s%s' % (CHAIN_NAME_PREFIX[direction], physical_network))
 
     def _add_chain_by_name_v4v6(self, chain_name):
-        self.iptables.ipv4['filter'].add_chain(chain_name)
-        self.iptables.ipv6['filter'].add_chain(chain_name)
+        self.ebtables.tables['filter'].add_chain(chain_name)
 
     def _remove_chain_by_name_v4v6(self, chain_name):
-        self.iptables.ipv4['filter'].remove_chain(chain_name)
-        self.iptables.ipv6['filter'].remove_chain(chain_name)
+        self.ebtables.tables['filter'].remove_chain(chain_name)
 
     def _add_chain(self, chain_name, device, direction):
         self._add_chain_by_name_v4v6(chain_name)
 
-        jump_rule = ['-m physdev --%s %s '
-                     '-j $%s' % (IPTABLES_DIRECTION[direction],
-                                 device,
-                                 ISOFLAT_CHAIN)]
-        self._add_rules_to_chain_v4v6('FORWARD', jump_rule, jump_rule,
-                                      comment=ic.VM_INT_SG)
+        jump_rule = ['-m physdev --%s %s -j $%s' % (EBTABLES_DIRECTION[direction],
+                                                    device,
+                                                    ISOFLAT_CHAIN)]
+        self._add_rules_to_chain_v4v6('FORWARD', jump_rule, comment=ic.VM_INT_SG)
 
         # jump to the chain based on the device
-        jump_rule = ['-m physdev --%s %s '
-                     '-j $%s' % (IPTABLES_DIRECTION[direction],
-                                 device,
-                                 chain_name)]
-        self._add_rules_to_chain_v4v6(ISOFLAT_CHAIN, jump_rule, jump_rule,
-                                      comment=ic.SG_TO_VM_SG)
+        jump_rule = ['-m physdev --%s %s -j $%s' % (EBTABLES_DIRECTION[direction],
+                                                    device,
+                                                    chain_name)]
+        self._add_rules_to_chain_v4v6(ISOFLAT_CHAIN, jump_rule, comment=ic.SG_TO_VM_SG)
 
         if direction == constants.EGRESS_DIRECTION:
-            self._add_rules_to_chain_v4v6('INPUT', jump_rule, jump_rule,
-                                          comment=ic.INPUT_TO_SG)
+            self._add_rules_to_chain_v4v6('INPUT', jump_rule, comment=ic.INPUT_TO_SG)
 
     def _add_rules_to_chain(self, chain_name, rules):
         # split groups by ip version
-        # for ipv4, iptables command is used
-        # for ipv6, iptables6 command is used
         rules = self._split_rules_by_remote_ips(rules)
-        ipv4_sg_rules, ipv6_sg_rules = self._split_rules_by_ethertype(rules)
-        ipv4_iptables_rules = self._convert_isoflat_to_iptables_rules(ipv4_sg_rules)
-        ipv6_iptables_rules = self._convert_isoflat_to_iptables_rules(ipv6_sg_rules)
+        ipv4_rules, ipv6_rules = self._split_rules_by_ethertype(rules)
+        ebtables_rules = self._convert_isoflat_to_ebtables_rules(ipv4_rules, 4)
+        ebtables_rules += self._convert_isoflat_to_ebtables_rules(ipv6_rules, 6)
         # finally add the rules to the port chain for a given direction
-        self._add_rules_to_chain_v4v6(chain_name,
-                                      ipv4_iptables_rules,
-                                      ipv6_iptables_rules)
+        self._add_rules_to_chain_v4v6(chain_name, ebtables_rules)
 
     def _setup_chain(self, device, physical_network, rules, direction):
         chain_name = self._network_chain_name(physical_network, direction)
@@ -95,17 +80,12 @@ class IptablesFirewall(firewall.FirewallDriver):
         """
         Accept all traffic by default.
         """
-        self.iptables.ipv4['filter'].add_chain('isoflat-fallback')
-        self.iptables.ipv4['filter'].add_rule('isoflat-fallback', '-j ACCEPT')
-        self.iptables.ipv6['filter'].add_chain('isoflat-fallback')
-        self.iptables.ipv6['filter'].add_rule('isoflat-fallback', '-j ACCEPT')
+        self.ebtables.tables['filter'].add_chain('fallback')
+        self.ebtables.tables['filter'].add_rule('fallback', '-j ACCEPT')
 
-    def _add_rules_to_chain_v4v6(self, chain_name, ipv4_rules, ipv6_rules,
-                                 comment=None):
-        for rule in ipv4_rules:
-            self.iptables.ipv4['filter'].add_rule(chain_name, rule, comment=comment)
-        for rule in ipv6_rules:
-            self.iptables.ipv6['filter'].add_rule(chain_name, rule, comment=comment)
+    def _add_rules_to_chain_v4v6(self, chain_name, rules, comment=None):
+        for rule in rules:
+            self.ebtables.tables['filter'].add_rule(chain_name, rule, comment=comment)
 
     @staticmethod
     def _allow_established():
@@ -117,27 +97,25 @@ class IptablesFirewall(firewall.FirewallDriver):
     def _ip_prefix_arg(direction, ip_prefix):
         if ip_prefix:
             if '/' not in ip_prefix:
-                # we need to convert it into a prefix to match iptables
+                # we need to convert it into a prefix to match ebtables
                 ip_prefix = c_utils.ip_to_cidr(ip_prefix)
             elif ip_prefix.endswith('/0'):
                 # an allow for every address is not a constraint so
-                # iptables drops it
+                # ebtables drops it
                 return []
             return ['-%s' % direction, ip_prefix]
         return []
 
     @staticmethod
-    def _protocol_arg(protocol, is_port):
-        iptables_rule = []
+    def _protocol_arg(protocol, ip_version):
+        ebtables_rule = []
         rule_protocol = n_const.IPTABLES_PROTOCOL_NAME_MAP.get(protocol, protocol)
         # protocol zero is a special case and requires no '-p'
+        proto_arg_prefix = 'ip' if ip_version == 4 else 'ip6'
         if rule_protocol:
-            iptables_rule = ['-p', rule_protocol]
-
-            if is_port and rule_protocol in constants.IPTABLES_PROTOCOL_MAP:
-                # iptables adds '-m protocol' when the port number is specified
-                iptables_rule += ['-m', constants.IPTABLES_PROTOCOL_MAP[rule_protocol]]
-        return iptables_rule
+            ebtables_rule = ['-p', 'ipv4' if ip_version == 4 else 'ipv6',
+                             proto_arg_prefix + '-proto', rule_protocol]
+        return ebtables_rule
 
     @staticmethod
     def _port_arg(direction, protocol, port_range_min, port_range_max):
@@ -146,7 +124,8 @@ class IptablesFirewall(firewall.FirewallDriver):
             return args
 
         protocol = n_const.IPTABLES_PROTOCOL_NAME_MAP.get(protocol, protocol)
-        if protocol in ['icmp', 'ipv6-icmp']:
+        # TODO: can't filter icmp right now
+        if protocol in ['ipv6-icmp']:
             protocol_type = 'icmpv6' if protocol == 'ipv6-icmp' else 'icmp'
             # Note(xuhanp): port_range_min/port_range_max represent
             # icmp type/code when protocol is icmp or icmpv6
@@ -157,44 +136,43 @@ class IptablesFirewall(firewall.FirewallDriver):
         elif port_range_min == port_range_max:
             args += ['--%s' % direction, '%s' % (port_range_min,)]
         else:
-            args += ['-m', 'multiport', '--%ss' % direction,
-                     '%s:%s' % (port_range_min, port_range_max)]
+            args += ['--%s' % direction, '%s:%s' % (port_range_min, port_range_max)]
         return args
 
-    def _generate_protocol_and_port_args(self, rule):
-        is_port = rule.get('port_range_min') is not None
-        args = self._protocol_arg(rule.get('protocol'), is_port)
-        args += self._port_arg('dport' if rule.get('direction') == 'egress' else 'sport',
+    def _generate_protocol_and_port_args(self, rule, ip_version):
+        args = self._protocol_arg(rule.get('protocol'), ip_version)
+        port_arg_prefix = 'ip' if ip_version == 4 else 'ip6'
+        port_arg_suffix = 'dport' if rule.get('direction') == 'egress' else 'sport'
+        args += self._port_arg('%s-%s' % (port_arg_prefix, port_arg_suffix),
                                rule.get('protocol'),
                                rule.get('port_range_min'),
                                rule.get('port_range_max'))
         return args
 
-    def _convert_isoflat_to_iptables_args(self, rule):
+    def _convert_to_ebtables_args(self, rule, ip_version):
         """
         Drop traffic matched by rules.
         """
-        args = self._ip_prefix_arg('d', rule.get('remote_ip'))
-        args += self._generate_protocol_and_port_args(rule)
+        ip_arg_prefix = 'ip' if ip_version == 4 else 'ip6'
+        ip_arg_suffix = 'dst' if rule.get('direction') == 'egress' else 'src'
+        args = self._ip_prefix_arg('%s-%s' % (ip_arg_prefix, ip_arg_suffix), rule.get('remote_ip'))
+        args += self._generate_protocol_and_port_args(rule, ip_version)
         args += ['-j DROP']
         return args
 
-    def _convert_isoflat_to_iptables_rules(self, isoflat_rules):
-        iptables_rules = [self._allow_established()]
+    def _convert_isoflat_to_ebtables_rules(self, isoflat_rules, ip_version):
+        ebtables_rules = [self._allow_established()]
         seen_rules = set()
         for rule in isoflat_rules:
-            args = self._convert_isoflat_to_iptables_args(rule)
+            args = self._convert_to_ebtables_args(rule, ip_version)
             if args:
                 rule_command = ' '.join(args)
                 if rule_command in seen_rules:
                     continue
                 seen_rules.add(rule_command)
-                iptables_rules.append(rule_command)
-        iptables_rules += [comment_rule('-m state --state ' 'INVALID -j DROP',
-                                        comment=ic.INVALID_DROP)]
-        iptables_rules += [comment_rule('-j $isoflat-fallback',
-                                        comment=ic.UNMATCHED)]
-        return iptables_rules
+                ebtables_rules.append(rule_command)
+        ebtables_rules += [comment_rule('-j $fallback', comment=ic.UNMATCHED)]
+        return ebtables_rules
 
     @staticmethod
     def _split_rules_by_ethertype(isoflat_rules):
@@ -227,4 +205,4 @@ class IptablesFirewall(firewall.FirewallDriver):
         self._remove_chain(physical_network, constants.EGRESS_DIRECTION)
         self._setup_chain(device, physical_network, isoflat_rules, constants.INGRESS_DIRECTION)
         self._setup_chain(device, physical_network, isoflat_rules, constants.EGRESS_DIRECTION)
-        self.iptables.apply()
+        self.ebtables.apply()
