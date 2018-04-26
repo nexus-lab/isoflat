@@ -1,0 +1,13 @@
+# neutron-rootwrap command filters for nodes on which neutron is
+# expected to control network
+#
+# This file should be owned by (and only-writeable by) the root user
+
+# format seems to be
+# cmd-name: filter-name, raw-command, user, args
+
+[Filters]
+
+# neutron_isoflat/services/isoflat/agents/firewall/linux/ebtables_firewall.py
+ebtables-save: CommandFilter, ebtables-save, root
+ebtables-restore: CommandFilter, ebtables-restore, root

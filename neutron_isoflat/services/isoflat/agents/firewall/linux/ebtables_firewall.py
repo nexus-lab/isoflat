@@ -13,16 +13,12 @@ BINARY_NAME = 'neutron-isoflat'
 ISOFLAT_CHAIN = 'iso-chain'
 CHAIN_NAME_PREFIX = {constants.INGRESS_DIRECTION: 'i-',
                      constants.EGRESS_DIRECTION: 'o-'}
-EBTABLES_DIRECTION = {constants.INGRESS_DIRECTION: 'physdev-out',
-                      constants.EGRESS_DIRECTION: 'physdev-in'}
-comment_rule = ebtables_manager.comment_rule
 
 
 class EbtablesFirewall(firewall.FirewallDriver):
 
     def __init__(self):
-        self.ebtables = ebtables_manager.EbtablesManager(state_less=True,
-                                                         _binary_name=BINARY_NAME)
+        self.ebtables = ebtables_manager.EbtablesManager(state_less=True, _binary_name=BINARY_NAME)
         self._add_isoflat_chain_v4v6()
         self._add_fallback_chain_v4v6()
 
@@ -40,19 +36,15 @@ class EbtablesFirewall(firewall.FirewallDriver):
     def _add_chain(self, chain_name, device, direction):
         self._add_chain_by_name_v4v6(chain_name)
 
-        jump_rule = ['-m physdev --%s %s -j $%s' % (EBTABLES_DIRECTION[direction],
-                                                    device,
-                                                    ISOFLAT_CHAIN)]
-        self._add_rules_to_chain_v4v6('FORWARD', jump_rule, comment=ic.VM_INT_SG)
-
-        # jump to the chain based on the device
-        jump_rule = ['-m physdev --%s %s -j $%s' % (EBTABLES_DIRECTION[direction],
-                                                    device,
-                                                    chain_name)]
-        self._add_rules_to_chain_v4v6(ISOFLAT_CHAIN, jump_rule, comment=ic.SG_TO_VM_SG)
-
         if direction == constants.EGRESS_DIRECTION:
+            jump_rule = ['-%s %s -j $%s' % ('i', device, chain_name)]
             self._add_rules_to_chain_v4v6('INPUT', jump_rule, comment=ic.INPUT_TO_SG)
+            self._add_rules_to_chain_v4v6('FORWARD', jump_rule, comment=ic.SG_TO_VM_SG)
+
+        if direction == constants.INGRESS_DIRECTION:
+            jump_rule = ['-%s %s -j $%s' % ('o', device, chain_name)]
+            self._add_rules_to_chain_v4v6('OUTPUT', jump_rule, comment=ic.INPUT_TO_SG)
+            self._add_rules_to_chain_v4v6('FORWARD', jump_rule, comment=ic.SG_TO_VM_SG)
 
     def _add_rules_to_chain(self, chain_name, rules):
         # split groups by ip version
@@ -88,12 +80,6 @@ class EbtablesFirewall(firewall.FirewallDriver):
             self.ebtables.tables['filter'].add_rule(chain_name, rule, comment=comment)
 
     @staticmethod
-    def _allow_established():
-        # Allow established connections
-        return comment_rule('-m state --state RELATED,ESTABLISHED -j RETURN',
-                            comment=ic.ALLOW_ASSOC)
-
-    @staticmethod
     def _ip_prefix_arg(direction, ip_prefix):
         if ip_prefix:
             if '/' not in ip_prefix:
@@ -103,7 +89,7 @@ class EbtablesFirewall(firewall.FirewallDriver):
                 # an allow for every address is not a constraint so
                 # ebtables drops it
                 return []
-            return ['-%s' % direction, ip_prefix]
+            return ['--%s' % direction, ip_prefix]
         return []
 
     @staticmethod
@@ -111,10 +97,10 @@ class EbtablesFirewall(firewall.FirewallDriver):
         ebtables_rule = []
         rule_protocol = n_const.IPTABLES_PROTOCOL_NAME_MAP.get(protocol, protocol)
         # protocol zero is a special case and requires no '-p'
-        proto_arg_prefix = 'ip' if ip_version == 4 else 'ip6'
+        proto_arg_prefix = '--ip' if ip_version == 4 else '--ip6'
+        ebtables_rule += ['-p', 'ipv4' if ip_version == 4 else 'ipv6']
         if rule_protocol:
-            ebtables_rule = ['-p', 'ipv4' if ip_version == 4 else 'ipv6',
-                             proto_arg_prefix + '-proto', rule_protocol]
+            ebtables_rule = [proto_arg_prefix + '-proto', rule_protocol]
         return ebtables_rule
 
     @staticmethod
@@ -142,7 +128,7 @@ class EbtablesFirewall(firewall.FirewallDriver):
     def _generate_protocol_and_port_args(self, rule, ip_version):
         args = self._protocol_arg(rule.get('protocol'), ip_version)
         port_arg_prefix = 'ip' if ip_version == 4 else 'ip6'
-        port_arg_suffix = 'dport' if rule.get('direction') == 'egress' else 'sport'
+        port_arg_suffix = 'dport' if rule.get('direction') == constants.EGRESS_DIRECTION else 'sport'
         args += self._port_arg('%s-%s' % (port_arg_prefix, port_arg_suffix),
                                rule.get('protocol'),
                                rule.get('port_range_min'),
@@ -154,14 +140,14 @@ class EbtablesFirewall(firewall.FirewallDriver):
         Drop traffic matched by rules.
         """
         ip_arg_prefix = 'ip' if ip_version == 4 else 'ip6'
-        ip_arg_suffix = 'dst' if rule.get('direction') == 'egress' else 'src'
+        ip_arg_suffix = 'dst' if rule.get('direction') == constants.EGRESS_DIRECTION else 'src'
         args = self._ip_prefix_arg('%s-%s' % (ip_arg_prefix, ip_arg_suffix), rule.get('remote_ip'))
         args += self._generate_protocol_and_port_args(rule, ip_version)
         args += ['-j DROP']
         return args
 
     def _convert_isoflat_to_ebtables_rules(self, isoflat_rules, ip_version):
-        ebtables_rules = [self._allow_established()]
+        ebtables_rules = []
         seen_rules = set()
         for rule in isoflat_rules:
             args = self._convert_to_ebtables_args(rule, ip_version)
@@ -171,7 +157,7 @@ class EbtablesFirewall(firewall.FirewallDriver):
                     continue
                 seen_rules.add(rule_command)
                 ebtables_rules.append(rule_command)
-        ebtables_rules += [comment_rule('-j $fallback', comment=ic.UNMATCHED)]
+        ebtables_rules += ['-j $fallback']
         return ebtables_rules
 
     @staticmethod
