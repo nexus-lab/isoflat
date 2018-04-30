@@ -71,7 +71,6 @@ class InvalidNetworkType(qexception.Invalid):
 
 # Class name here has to be lowercase except the initial letter
 class Isoflat(extensions.ExtensionDescriptor):
-    """API extension for handling HDN tasks."""
 
     @classmethod
     def get_name(cls):
