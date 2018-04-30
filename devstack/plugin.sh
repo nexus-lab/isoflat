@@ -43,9 +43,16 @@ if is_service_enabled q-agt neutron-agent; then
                 source $NEUTRON_DIR/devstack/lib/l2_agent
                 plugin_agent_add_l2_agent_extension isoflat
                 configure_l2_agent
+                neutron_deploy_rootwrap_filters $ISOFLAT_PLUGIN_PATH
             fi
         elif [[ "$2" == "extra" ]]; then
-            :
+            if is_service_enabled q-agt; then
+                stop_process q-agt
+                run_process q-agt "$AGENT_BINARY --config-file $NEUTRON_CONF --config-file /$Q_PLUGIN_CONF_FILE --config-file $ISOFLAT_AGENT_CONF_FILE"
+            elif is_service_enabled neutron-agent; then
+                stop_process neutron-agent
+                run_process neutron-agent "$NEUTRON_BIN_DIR/$NEUTRON_AGENT_BINARY --config-file $NEUTRON_CONF --config-file $NEUTRON_CORE_PLUGIN_CONF --config-file $ISOFLAT_AGENT_CONF_FILE"
+            fi
         fi
     elif [[ "$1" == "unstack" ]]; then
         :

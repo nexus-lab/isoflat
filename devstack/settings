@@ -1,5 +1,5 @@
 ABSOLUTE_PATH=$(cd `dirname "${BASH_SOURCE[0]}"` && pwd)
 ISOFLAT_PLUGIN_PATH=$ABSOLUTE_PATH/..
 ISOFLAT_PLUGIN_CONF_FILE="/etc/neutron/isoflat.ini"
-ISOFLAT_OVS_AGENT_BINARY="$NEUTRON_BIN_DIR/neutron-isoflat-openvswitch-agent"
-ISOFLAT_OVS_AGENT_CONF_FILE="/etc/neutron/isoflat.ini"
+ISOFLAT_AGENT_CONF_FILE="/etc/neutron/isoflat.ini"
+ISOFLAT_PLUGIN_FILTER_FILE="/etc/neutron/rootwrap.d/ebtables-firewall.filters"
