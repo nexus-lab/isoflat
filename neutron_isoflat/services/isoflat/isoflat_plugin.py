@@ -28,7 +28,7 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
             raise isoflat.NotAuthorizedToEditRule(network_id=network['id'])
         self._check_network_type(network)
 
-    def _prepare_rule_dict_for_agent(self, context, rule, network):
+    def _prepare_rule_dict_for_agent(self, context, rule, physical_network):
         if rule['remote_ip'] is not None:
             remote_ips = [rule['remote_ip']]
         elif rule.get('remote_network_id', None) is not None:
@@ -38,7 +38,7 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
         else:
             remote_ips = ['0.0.0.0/0']
         return {
-            'physical_network': network['provider:physical_network'],
+            'physical_network': physical_network,
             'direction': rule['direction'],
             'protocol': rule['protocol'],
             'port_range_min': rule['port_range_min'],
@@ -46,10 +46,6 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
             'ethertype': rule['ethertype'],
             'remote_ips': remote_ips
         }
-
-    def _prepare_rules_dict_for_agent(self, context, network):
-        rules = self._get_rules_by_network(context, network['id'])
-        return [self._prepare_rule_dict_for_agent(context, rule, network) for rule in rules]
 
     def __init__(self):
         LOG.debug("ISOFLAT PLUGIN INITIALIZED")
@@ -62,10 +58,15 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
         else:
             raise n_exc.Invalid("Error retrieving driver for provider %s" % default_provider)
 
+    def get_rules_by_physical_network(self, context, physical_network):
+        rules = self._get_rules_by_physical_network(context, physical_network)
+        return [self._prepare_rule_dict_for_agent(context, rule, physical_network) for rule in rules]
+
     def create_rule(self, context, rule):
         LOG.debug("IsoflatPlugin.create_rule() called")
         r = rule['rule']
         network = self._get_network_details(context, r['network_id'])
+        physical_network = network['provider:physical_network']
         self._check_network(context, network)
         if r['remote_network_id'] is not None:
             remote_network = self._get_network_details(context, r['network_id'])
@@ -73,12 +74,10 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
 
         with context.session.begin(subtransactions=True):
             r = super(IsoflatPlugin, self).create_rule(context, rule)
-            rule = self._prepare_rule_dict_for_agent(context, r, network)
-            # send back all Isoflat rules of this network
-            rules = self._prepare_rules_dict_for_agent(context, network)
-            self.driver.create_rule_precommit(context, rule, rules)
+            rule = self._prepare_rule_dict_for_agent(context, r, physical_network)
+            self.driver.create_rule_precommit(context, rule)
         try:
-            self.driver.create_rule_postcommit(context, rule, rules)
+            self.driver.create_rule_postcommit(context, rule)
         except Exception:
             with excutils.save_and_reraise_exception():
                 LOG.error("Failed to create isoflat rule on driver,"
@@ -91,16 +90,15 @@ class IsoflatPlugin(isoflat_db.IsoflatDbMixin):
         with context.session.begin(subtransactions=True):
             r = self.get_rule(context, rule_id)
             network = self._get_network_details(context, r['network_id'])
+            physical_network = network['provider:physical_network']
             self._check_network(context, network)
             super(IsoflatPlugin, self).delete_rule(context, rule_id)
 
-            rule = self._prepare_rule_dict_for_agent(context, r, network)
-            # send back all Isoflat rules of this network
-            rules = self._prepare_rules_dict_for_agent(context, network)
-            self.driver.delete_rule_precommit(context, rule, rules)
+            rule = self._prepare_rule_dict_for_agent(context, r, physical_network)
+            self.driver.delete_rule_precommit(context, rule)
         try:
-            self.driver.delete_rule_postcommit(context, rule, rules)
+            self.driver.delete_rule_postcommit(context, rule)
         except Exception:
             with excutils.save_and_reraise_exception():
                 LOG.error("Failed to delete rule on driver. "
-                          "rule: %s", id)
+                          "rule: %s", rule_id)

@@ -1,5 +1,6 @@
 from neutron.db import common_db_mixin as base_db
-from neutron.db.models_v2 import Subnet
+from neutron.db.models.segment import NetworkSegment
+from neutron.db.models_v2 import Subnet, Network
 from neutron_lib.plugins import directory
 from oslo_log import log as logging
 from oslo_utils import uuidutils
@@ -36,6 +37,14 @@ class IsoflatDbMixin(isoflat.IsoflatPluginBase, base_db.CommonDbMixin):
     @staticmethod
     def _get_rules_by_network(context, network_id):
         return context.session.query(IsoflatRule).filter_by(network_id=network_id).all()
+
+    @staticmethod
+    def _get_rules_by_physical_network(context, physical_network):
+        segment = context.session.query(NetworkSegment).filter_by(physical_network=physical_network,
+                                                                  network_type='flat').first()
+        if not segment:
+            return []
+        return IsoflatDbMixin._get_rules_by_network(context, segment['network_id'])
 
     def _make_rule_dict(self, rule, fields=None):
         res = {

@@ -15,10 +15,11 @@ LOG = logging.getLogger(__name__)
 
 
 class IsoflatOvsDriver(isoflat.IsoflatAgentDriverBase):
+
     _bridge_mappings_changed = False
 
-    def __init__(self):
-        super(IsoflatOvsDriver, self).__init__()
+    def __init__(self, agent_extension):
+        super(IsoflatOvsDriver, self).__init__(agent_extension)
         self.ovs_bridge_mappings = self._parse_bridge_mappings(cfg.CONF.OVS.bridge_mappings)
         self.iso_bridge_mappings = self._parse_bridge_mappings(cfg.CONF.ISOFLAT.bridge_mappings, False)
 
@@ -26,6 +27,10 @@ class IsoflatOvsDriver(isoflat.IsoflatAgentDriverBase):
         # reboot the agent if bridge mappings changes
         if self._bridge_mappings_changed:
             os.execl(sys.executable, sys.executable, *sys.argv)
+        # refresh firewall rules on agent restart
+        for physical_network in self.iso_bridge_mappings:
+            rules = self.agent_extension.get_rules_for_network(physical_network)
+            self.update_rules(None, physical_network, rules)
 
     def consume_api(self, agent_api):
         pass
@@ -104,14 +109,7 @@ class IsoflatOvsDriver(isoflat.IsoflatAgentDriverBase):
                 with open(config_file, 'wb') as f:
                     parser.write(f)
 
-    def create_rule(self, context, rule, rules):
-        physical_network = rule['physical_network']
+    def update_rules(self, context, physical_network, isoflat_rules):
         mirror_bridge = self.ovs_bridge_mappings[physical_network]
         device = self._get_phy_if_name(mirror_bridge)
-        self.firewall.update_firewall_rules(device, physical_network, rules)
-
-    def delete_rule(self, context, rule, rules):
-        physical_network = rule['physical_network']
-        mirror_bridge = self.ovs_bridge_mappings[physical_network]
-        device = self._get_phy_if_name(mirror_bridge)
-        self.firewall.update_firewall_rules(device, physical_network, rules)
+        self.firewall.update_firewall_rules(device, physical_network, isoflat_rules)

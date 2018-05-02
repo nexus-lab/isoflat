@@ -2,14 +2,15 @@ import abc
 import random
 import string
 
+import oslo_messaging as messaging
 import six
 from neutron import manager
 from neutron.common import rpc as n_rpc
+from neutron_lib import context as qcontext
 from neutron_lib.agent import l2_extension
 from neutron_lib.utils import helpers
 from oslo_config import cfg
 from oslo_log import log as logging
-from oslo_service import service
 
 from neutron_isoflat._i18n import _
 from neutron_isoflat.common import constants
@@ -22,11 +23,6 @@ OPTS = [
         'firewall_driver',
         default='ebtables',
         help=_('Class name of the firewall driver Isoflat uses to filter flat network traffic.')
-    ),
-    cfg.IntOpt(
-        'agent_periodic_interval',
-        default=5,
-        help=_('Seconds between periodic task runs')
     ),
     cfg.ListOpt('bridge_mappings',
                 default=constants.DEFAULT_BRIDGE_MAPPINGS,
@@ -50,7 +46,8 @@ cfg.CONF.register_opts(OPTS, constants.ISOFLAT)
 @six.add_metaclass(abc.ABCMeta)
 class IsoflatAgentDriverBase(object):
 
-    def __init__(self):
+    def __init__(self, agent_extension):
+        self.agent_extension = agent_extension
         firewall_driver = cfg.CONF.ISOFLAT.firewall_driver
         LOG.debug("Init Isoflat firewall settings (driver=%s)", firewall_driver)
         firewall_class = firewall.load_firewall_driver_class(firewall_driver)
@@ -113,38 +110,37 @@ class IsoflatAgentDriverBase(object):
         """
 
     @abc.abstractmethod
-    def create_rule(self, context, rule, rules):
-        """Create an Isoflat rule."""
-
-    @abc.abstractmethod
-    def delete_rule(self, context, rule, rules):
-        """Delete an Isoflat rule."""
+    def update_rules(self, context, physical_network, isoflat_rules):
+        """Update firewall rules for a physical network."""
 
 
 class IsoflatAgentExtension(l2_extension.L2AgentExtension):
     agent_api = None
     driver = None
+    context = None
 
     def _setup_rpc(self):
         endpoints = [self]
         conn = n_rpc.create_connection()
         conn.create_consumer(constants.TOPIC_ISOFLAT_AGENT, endpoints, fanout=False)
         conn.consume_in_threads()
+        target = messaging.Target(topic=constants.TOPIC_ISOFLAT_PLUGIN, version='1.0')
+        self.client = n_rpc.get_client(target)
 
     def consume_api(self, agent_api):
         self.agent_api = agent_api
 
     def initialize(self, connection, driver_type):
         LOG.debug("Isoflat agent initialize called")
+        self.context = qcontext.get_admin_context_without_session()
+        self._setup_rpc()
+
         self.driver = manager.NeutronManager.load_class_for_provider(
-            'neutron_isoflat.isoflat.agent_drivers', driver_type)()
+            'neutron_isoflat.isoflat.agent_drivers', driver_type)(self)
         self.driver.consume_api(self.agent_api)
         self.driver.setup_mirror_bridges()
         self.driver.save_bridge_mappings()
         self.driver.initialize()
-
-        self._setup_rpc()
-        IsoflatAgentService(self).start()
 
     def handle_port(self, context, data):
         pass
@@ -152,25 +148,11 @@ class IsoflatAgentExtension(l2_extension.L2AgentExtension):
     def delete_port(self, context, data):
         pass
 
-    def create_rule(self, context, rule, rules):
-        LOG.debug("Received an RPC call for creating isoflat rule %s" % rule)
-        self.driver.create_rule(context, rule, rules)
+    def update_rules(self, context, physical_network, isoflat_rules):
+        LOG.debug("Received an RPC call for updating isoflat rules on network %s" % physical_network)
+        self.driver.update_rules(context, physical_network, isoflat_rules)
 
-    def delete_rule(self, context, rule, rules):
-        LOG.debug("Received an RPC call for deleting isoflat rule %s" % rule)
-        self.driver.delete_rule(context, rule, rules)
-
-    def periodic_tasks(self):
-        pass
-
-
-class IsoflatAgentService(service.Service):
-    def __init__(self, driver):
-        super(IsoflatAgentService, self).__init__()
-        self.driver = driver
-
-    def start(self):
-        super(IsoflatAgentService, self).start()
-        self.tg.add_timer(
-            int(cfg.CONF.ISOFLAT.agent_periodic_interval),
-            self.driver.periodic_tasks, None)
+    def get_rules_for_network(self, physical_network):
+        LOG.debug("Get isoflat rules for physical network %s via rpc", physical_network)
+        cctxt = self.client.prepare()
+        return cctxt.call(self.context, 'get_rules_for_network', physical_network=physical_network)
