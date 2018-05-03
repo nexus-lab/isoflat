@@ -100,7 +100,7 @@ class EbtablesFirewall(firewall.FirewallDriver):
         proto_arg_prefix = '--ip' if ip_version == 4 else '--ip6'
         ebtables_rule += ['-p', 'ipv4' if ip_version == 4 else 'ipv6']
         if rule_protocol:
-            ebtables_rule = [proto_arg_prefix + '-proto', rule_protocol]
+            ebtables_rule += [proto_arg_prefix + '-proto', rule_protocol]
         return ebtables_rule
 
     @staticmethod
