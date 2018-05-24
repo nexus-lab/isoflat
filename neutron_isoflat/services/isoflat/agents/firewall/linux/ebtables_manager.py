@@ -29,6 +29,12 @@ XLOCK_WAIT_INTERVAL = 200000
 # a failure during ebtables-restore
 EBTABLES_ERROR_LINES_OF_CONTEXT = 5
 
+STANDARD_CHAINS = {
+    'filter': ['FORWARD', 'INPUT', 'OUTPUT'],
+    'nat': ['PREROUTING', 'OUTPUT', 'POSTROUTING'],
+    'broute': ['BROUTING']
+}
+
 
 class EbTablesApplyException(qexceptions.NeutronException):
     def __init__(self, message=None):
@@ -362,7 +368,8 @@ class EbtablesManager(object):
                 elif command.startswith(':'):
                     # recreate the chain
                     chain = command[1:].strip()
-                    _args += ['-t', table, '-N', chain]
+                    if chain not in STANDARD_CHAINS[table]:
+                        _args += ['-t', table, '-N', chain]
                 elif command.strip() != '':
                     _args += ['-t', table] + command.split(' ')
                 else:
@@ -431,7 +438,7 @@ class EbtablesManager(object):
                 new_rules = self._modify_rules(old_rules, table)
                 # generate the ebtables commands to get between the old state
                 # and the new state
-                changes = _generate_path_between_rules(old_rules, new_rules)
+                changes = _generate_path_between_rules(table_name, old_rules, new_rules)
                 if changes:
                     # if there are changes to the table, we put on the header
                     # and footer that ebtables-save needs
@@ -586,7 +593,7 @@ class EbtablesManager(object):
         return new_filter
 
 
-def _generate_path_between_rules(old_rules, new_rules):
+def _generate_path_between_rules(table_name, old_rules, new_rules):
     """Generates ebtables commands to get from old_rules to new_rules.
 
     This function diffs the two rule sets and then calculates the ebtables
@@ -614,7 +621,8 @@ def _generate_path_between_rules(old_rules, new_rules):
             chain, old_by_chain[chain], new_by_chain[chain])
     # unreferenced chains get the axe
     for chain in sorted(old_chains - new_chains):
-        statements += ['-X %s' % chain]
+        if chain not in STANDARD_CHAINS[table_name]:
+            statements += ['-X %s' % chain]
     return statements
 
 

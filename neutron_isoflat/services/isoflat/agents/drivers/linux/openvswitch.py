@@ -55,41 +55,50 @@ class IsoflatOvsDriver(isoflat.IsoflatAgentDriverBase):
                 name = None
         return name
 
-    def setup_mirror_bridges(self):
+    def _setup_isoflat_bridge(self, phy_br_name, iso_br_name):
         ovs = ovs_lib.BaseOVS()
         ip_wrapper = ip_lib.IPWrapper()
+        phy_br = bridge_lib.BridgeDevice(phy_br_name)
+
+        iso_br = ovs.add_bridge(iso_br_name)
+        iso_br_link = ip_lib.IPDevice(iso_br_name)
+        iso_br_link.link.set_up()
+
+        phy_if_name = self._get_phy_if_name(iso_br_name)
+        iso_if_name = self._get_iso_if_name(iso_br_name)
+        device = ip_lib.IPDevice(iso_if_name)
+        if device.exists():
+            device.link.delete()
+            # Give udev a chance to process its rules here, to avoid
+            # race conditions between commands launched by udev rules
+            # and the subsequent call to ip_wrapper.add_veth
+            utils.execute(['udevadm', 'settle', '--timeout=10'])
+        phy_veth, iso_veth = ip_wrapper.add_veth(phy_if_name, iso_if_name)
+        iso_br.add_port(iso_if_name)
+        phy_br.addif(phy_veth)
+        LOG.info("Added OVS Isoflat bridge %s and veth port pair "
+                 "(%s, %s)" % (iso_br_name, phy_if_name, iso_if_name))
+        # enable veth to pass traffic
+        phy_veth.link.set_up()
+        iso_veth.link.set_up()
+
+    def setup_isoflat_bridges(self):
         for physical_network in self.iso_bridge_mappings:
+            phy_br_name = self.iso_bridge_mappings[physical_network]
             if physical_network not in self.ovs_bridge_mappings:
                 self._bridge_mappings_changed = True
-                br_name = self.iso_bridge_mappings[physical_network]
-                if not bridge_lib.BridgeDevice(br_name).exists():
+                if not bridge_lib.BridgeDevice(phy_br_name).exists():
                     LOG.error("Linux bridge %(bridge)s for physical network "
                               "%(physical_network)s does not exist. Isoflat agent "
                               "terminated!",
                               {'physical_network': physical_network,
-                               'bridge': br_name})
+                               'bridge': phy_br_name})
                     sys.exit(1)
-                mir_br_name = self._allocate_bridge_name()
-                self.ovs_bridge_mappings[physical_network] = mir_br_name
-                iso_br = ovs.add_bridge(mir_br_name)
-                phy_br = bridge_lib.BridgeDevice(br_name)
-                phy_if_name = self._get_phy_if_name(mir_br_name)
-                iso_if_name = self._get_iso_if_name(mir_br_name)
-                device = ip_lib.IPDevice(iso_if_name)
-                if device.exists():
-                    device.link.delete()
-                    # Give udev a chance to process its rules here, to avoid
-                    # race conditions between commands launched by udev rules
-                    # and the subsequent call to ip_wrapper.add_veth
-                    utils.execute(['udevadm', 'settle', '--timeout=10'])
-                phy_veth, iso_veth = ip_wrapper.add_veth(phy_if_name, iso_if_name)
-                iso_br.add_port(iso_if_name)
-                phy_br.addif(phy_veth)
-                LOG.info("Added OVS Isoflat bridge %s and veth port pair "
-                         "(%s, %s)" % (mir_br_name, phy_if_name, iso_if_name))
-                # enable veth to pass traffic
-                phy_veth.link.set_up()
-                iso_veth.link.set_up()
+                iso_br_name = self._allocate_bridge_name()
+                self.ovs_bridge_mappings[physical_network] = iso_br_name
+            else:
+                iso_br_name = self.ovs_bridge_mappings[physical_network]
+            self._setup_isoflat_bridge(phy_br_name, iso_br_name)
 
     def save_bridge_mappings(self):
         if not self._bridge_mappings_changed:

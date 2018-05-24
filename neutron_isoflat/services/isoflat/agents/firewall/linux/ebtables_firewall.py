@@ -110,7 +110,7 @@ class EbtablesFirewall(firewall.FirewallDriver):
             return args
 
         protocol = n_const.IPTABLES_PROTOCOL_NAME_MAP.get(protocol, protocol)
-        # TODO: can't filter icmp right now
+        # TODO: can't filter icmp by type and code right now
         if protocol in ['ipv6-icmp']:
             protocol_type = 'icmpv6' if protocol == 'ipv6-icmp' else 'icmp'
             # Note(xuhanp): port_range_min/port_range_max represent
@@ -119,7 +119,7 @@ class EbtablesFirewall(firewall.FirewallDriver):
             # icmp code can be 0 so we cannot use "if port_range_max" here
             if port_range_max is not None:
                 args[-1] += '/%s' % port_range_max
-        elif port_range_min == port_range_max:
+        elif port_range_min == port_range_max or port_range_max is None:
             args += ['--%s' % direction, '%s' % (port_range_min,)]
         else:
             args += ['--%s' % direction, '%s:%s' % (port_range_min, port_range_max)]

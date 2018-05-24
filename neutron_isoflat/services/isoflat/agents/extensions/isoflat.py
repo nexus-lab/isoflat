@@ -97,7 +97,7 @@ class IsoflatAgentDriverBase(object):
         """
 
     @abc.abstractmethod
-    def setup_mirror_bridges(self):
+    def setup_isoflat_bridges(self):
         """
         Check if the [ovs] or [linux_bridges] section bridge_mappings has all the provider networks.
         If not, set up the bridges and restart the agent.
@@ -138,7 +138,7 @@ class IsoflatAgentExtension(l2_extension.L2AgentExtension):
         self.driver = manager.NeutronManager.load_class_for_provider(
             'neutron_isoflat.isoflat.agent_drivers', driver_type)(self)
         self.driver.consume_api(self.agent_api)
-        self.driver.setup_mirror_bridges()
+        self.driver.setup_isoflat_bridges()
         self.driver.save_bridge_mappings()
         self.driver.initialize()
 

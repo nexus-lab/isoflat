@@ -6,7 +6,7 @@ class IsoflatLinuxBridgeDriver(isoflat.IsoflatAgentDriverBase):
     def save_bridge_mappings(self):
         pass
 
-    def setup_mirror_bridges(self):
+    def setup_isoflat_bridges(self):
         pass
 
     def initialize(self):
