@@ -39,6 +39,9 @@ if is_service_enabled q-agt neutron-agent; then
         elif [[ "$2" == "install" ]]; then
             install_isoflat
         elif [[ "$2" == "post-config" ]]; then
+            if [[ ! -f $ISOFLAT_PLUGIN_CONF_FILE ]]; then
+                configure_isoflat_plugin
+            fi
             if is_service_enabled q-agt neutron-agent; then
                 source $NEUTRON_DIR/devstack/lib/l2_agent
                 plugin_agent_add_l2_agent_extension isoflat
